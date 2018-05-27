@@ -44,15 +44,12 @@ public class Aircraft : MonoBehaviour {
         
         // Set up target/reticle
         targetDist = 20;
-        targetRadius = 20;
+        segments = 32;
+        xradius = 1;
+        yradius = 1;
         Ray targetRay = new Ray(transform.position, transform.TransformDirection(Vector3.forward));
         targetVect = targetRay.GetPoint(targetDist);
-        NewCircle(targetVect, xradius, yradius, segments);
-
-        // Reticle
-        segments = 32;
-        xradius = 5;
-        yradius = 5;
+        circleLine = NewCircle(targetVect, xradius, yradius, segments);
 
         // Time in seconds to run for and start time
         taskTime = 60;
@@ -107,6 +104,7 @@ public class Aircraft : MonoBehaviour {
         RaycastHit hit;
         Physics.Raycast(transform.position, transform.TransformDirection(Vector3.forward), out hit);
         // TODO if hit target, all is fine, if not, make ret/tar red and give 3 sec countdown before failure
+        //circleLine.SetPositions();
 
 
         // Time countdown
@@ -136,27 +134,26 @@ public class Aircraft : MonoBehaviour {
     // Creates Line obj circle points
     LineRenderer NewCircle(Vector3 targetVect, float xradius, float yradius, int segments)
     {
-        circleLine = gameObject.GetComponent<LineRenderer>();
-        circleLine.positionCount = segments + 1;
-        circleLine.useWorldSpace = false;
-        circleLine.startColor = Color.magenta;
-        circleLine.startWidth = 0.5f;
+        LineRenderer circ = GameObject.FindGameObjectWithTag("Reticle").GetComponent<LineRenderer>();
+        circ.positionCount = segments + 1;
+        circ.useWorldSpace = false;
+        circ.startColor = Color.black;
+        circ.startWidth = 0.5f;
 
         float x;
         float y;
-        float z;
 
         float angle = 20f;
 
         for (int i = 0; i < (segments + 1); i++)
         {
             x = Mathf.Sin(Mathf.Deg2Rad * angle) * xradius;
-            z = Mathf.Cos(Mathf.Deg2Rad * angle) * yradius;
+            y = Mathf.Cos(Mathf.Deg2Rad * angle) * yradius;
 
-            circleLine.SetPosition(i, new Vector3(targetVect.x + x, targetVect.y, targetVect.z));
+            circ.SetPosition(i, new Vector3(targetVect.x + x, targetVect.y + y, targetVect.z));
 
             angle += (360f / segments);
         }
-        return circleLine;
+        return circ;
     }
 }

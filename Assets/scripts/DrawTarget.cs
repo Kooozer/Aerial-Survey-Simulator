@@ -15,7 +15,7 @@ public class DrawTarget : MonoBehaviour {
 
         circleLine.positionCount = segments + 1;
         circleLine.useWorldSpace = false;
-        circleLine.startColor = Color.magenta;
+        circleLine.startColor = Color.black;
         circleLine.startWidth = 0.5f;
         CreatePoints();
     }
