@@ -5,18 +5,23 @@ using UnityEngine;
 public class DrawTarget : MonoBehaviour {
     
     private int segments = 32;
-    private float xradius = 5;
-    private float yradius = 5;
-    LineRenderer circleLine;
+    private float r = 5;
+    LineRenderer line;
+    SphereCollider mesh;
 
     // Use this for initialization
     void Start () {
-        circleLine = gameObject.GetComponent<LineRenderer>();
+        mesh = gameObject.GetComponent<SphereCollider>();
+        mesh.radius = r;
 
-        circleLine.positionCount = segments + 1;
-        circleLine.useWorldSpace = false;
-        circleLine.startColor = Color.black;
-        circleLine.startWidth = 0.5f;
+        line = gameObject.GetComponent<LineRenderer>();
+        line.positionCount = segments + 1;
+        line.useWorldSpace = false;
+        line.startColor = Color.black;
+        line.endColor = Color.black;
+        line.startWidth = 0.1f;
+        line.endWidth = 0.1f;
+        line.loop = true;
         CreatePoints();
     }
 
@@ -29,10 +34,10 @@ public class DrawTarget : MonoBehaviour {
 
         for (int i = 0; i < (segments + 1); i++)
         {
-            x = Mathf.Sin(Mathf.Deg2Rad * angle) * xradius;
-            y = Mathf.Cos(Mathf.Deg2Rad * angle) * yradius;
+            x = Mathf.Sin(Mathf.Deg2Rad * angle) * r;
+            y = Mathf.Cos(Mathf.Deg2Rad * angle) * r;
 
-            circleLine.SetPosition(i, new Vector3(x, y, 0));
+            line.SetPosition(i, new Vector3(x, y, 0));
 
             angle += (360f / segments);
         }

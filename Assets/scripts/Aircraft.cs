@@ -1,8 +1,13 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+using System;
 
 public class Aircraft : MonoBehaviour {
+
+    public GameObject persVarsObj;
+
     private float diveRate;
     private float climbRate;
     private float yawRate;
@@ -10,54 +15,77 @@ public class Aircraft : MonoBehaviour {
 
     private float drift;
 
-    private float targetDist;
-    private float targetRadius;
-
     private float timeOnTask;
     private float pcComplete;
-    public float taskTime;
+    private float taskTime;
+
+    // Out of bounds - current seconds and allowed seconds
+    private float oobTime;
+    private float oobLimit;
 
     public Text timeRemainingText;
+
     public Text backButtonText;
     private List<string> backTextList;
-    public VerticalLayoutGroup completionUI;
 
-    public Vector3 targetVect;
+    public Text resetButtonText;
+    private List<string> resetTextList;
+
+    public VerticalLayoutGroup endSceneUI;
+    public Text endSceneBannerText;
+
+    private Vector3 targetVect;
     public int segments;
-    public float xradius;
-    public float yradius;
-    LineRenderer circleLine;
+    public float targetDist;
+    private float retRadius;
+    LineRenderer reticle;
 
     // Use this for initialization
     void Start() {
 
-        completionUI.gameObject.SetActive(false);
+        endSceneUI.gameObject.SetActive(false);
+        Time.timeScale = 1;
+        persVarsObj = GameObject.Find("Persistent vars");
+        PersistentVars persVars = persVarsObj.GetComponent<PersistentVars>();
 
         // Aircraft stats
-        diveRate = 30;
-        climbRate = 30;
-        yawRate = 30;
-        rollRate = 30;
+        diveRate = persVars.diveRate;
+        climbRate = persVars.climbRate;
+        yawRate = persVars.yawRate;
+        rollRate = persVars.rollRate;
         
         // Drift rate off centre
-        drift = 10;
-        
-        // Set up target/reticle
+        drift = persVars.drift;
+
+        // Reticle vars
         targetDist = 20;
-        segments = 32;
-        xradius = 1;
-        yradius = 1;
-        Ray targetRay = new Ray(transform.position, transform.TransformDirection(Vector3.forward));
-        targetVect = targetRay.GetPoint(targetDist);
-        circleLine = NewCircle(targetVect, xradius, yradius, segments);
+        segments = 16;
+        retRadius = 0.5f;
+
+        // Set up reticle
+        LineRenderer reticle = gameObject.GetComponent<LineRenderer>();
+        reticle.positionCount = 5;
+        reticle.useWorldSpace = false;
+        reticle.startColor = Color.black;
+        reticle.endColor = Color.black;
+        reticle.startWidth = 0.1f;
+        reticle.endWidth = 0.1f;
+        reticle.loop = false;
+        reticle.SetPositions(CreateCrossPoints(new Vector3(0, 0, transform.position.z + targetDist)));
+
 
         // Time in seconds to run for and start time
-        taskTime = 60;
+        taskTime = persVars.taskTime;
         timeOnTask = 0;
+        oobTime = 3;
 
-        // Completion text
-        string[] sa = { "tea", "crumpets", "whiskey", "biscuits", "gin", "adoration", "abuse", "indifference", "paperwork", "disaster", "ice cream", "coffee" };
-        backTextList = new List<string>(sa);
+        // Back button text
+        string[] bt = { "tea", "crumpets", "whiskey", "biscuits", "gin", "glory", "abuse", "indifference", "paperwork", "disaster", "cake", "medals" };
+        backTextList = new List<string>(bt);
+
+        // Reset button text
+        string[] rt = { "glinty", "dark", "bright", "early", "late", "many JPEGs", "drunk", "happy" };
+        resetTextList = new List<string>(rt);
     }
 	
 	// Update is called once per frame
@@ -91,7 +119,7 @@ public class Aircraft : MonoBehaviour {
         // If dead level, nudge in random direction
         if (transform.localRotation.x == 0 && transform.localRotation.y == 0)
         {
-            transform.Rotate(Random.Range(-1, 1), Random.Range(-1, 1), 0);
+            transform.Rotate(UnityEngine.Random.Range(-1, 1), UnityEngine.Random.Range(-1, 1), 0);
         }
         // Else drift away from centre
         else
@@ -100,14 +128,29 @@ public class Aircraft : MonoBehaviour {
         }
 
 
-        // TODO Check if aircraft is pointing within target, draw reticle
+        // Check if aircraft is pointing within target
+        // Draw reticle at distance to target
         RaycastHit hit;
-        Physics.Raycast(transform.position, transform.TransformDirection(Vector3.forward), out hit);
-        // TODO if hit target, all is fine, if not, make ret/tar red and give 3 sec countdown before failure
-        //circleLine.SetPositions();
+        Ray targetRay = new Ray(transform.position, transform.forward);
+        Color retCol;
+        if (!Physics.Raycast(targetRay, out hit))
+        {
+            retCol = Color.red;
+            retCol = Color.red;
+            oobTime += Time.deltaTime;
+        }
+        else
+        {
+            retCol = Color.black;
+            retCol = Color.black;
+            oobTime = 0;
+        }
+        LineRenderer reticle = gameObject.GetComponent<LineRenderer>();
+        reticle.startColor = retCol;
+        reticle.endColor = retCol;
 
 
-        // Time countdown
+        // Survey time countdown
         timeOnTask += Time.deltaTime;
         pcComplete = (timeOnTask / taskTime) * 100;
         timeRemainingText.text = "Time on task: " + string.Format("{0, 4:000.0}s", timeOnTask) + "\nCompleted: " + string.Format("{0, 3:000}%", pcComplete);
@@ -115,45 +158,78 @@ public class Aircraft : MonoBehaviour {
         {
             Time.timeScale = 0;
             timeOnTask = 0; // Make sure text reads exactly 0!
-            ShowCompletionUI();
-            // End of survey, make visible victory text & button
+            ShowEndSceneUI("WIN");
+        }
 
+        // If out of bounds time is over the limit, complain and stop!
+        if (oobTime > oobLimit)
+        {
+            Time.timeScale = 0;
+            ShowEndSceneUI("FAIL");
         }
     }
 
     // Shows the survey complete UI elements and generates the back button text
-    void ShowCompletionUI()
+    void ShowEndSceneUI(string cause)
     {
-        completionUI.gameObject.SetActive(true);
-        int backTextListLength = backTextList.Count;
-        string randText1 = backTextList[Random.Range(0, backTextListLength)];
-        string randText2 = backTextList[Random.Range(0, backTextListLength)];
-        backButtonText.text = "Back for " + randText1 + " and " + randText2;
+        if (!endSceneUI.IsActive())
+        {
+            endSceneUI.gameObject.SetActive(true);
+            int backTextListLength = backTextList.Count;
+            string backRandText1 = backTextList[UnityEngine.Random.Range(0, backTextListLength)];
+            string backRandText2 = backTextList[UnityEngine.Random.Range(0, backTextListLength)];
+            backButtonText.text = "Back for " + backRandText1 + " and " + backRandText2;
+
+            if (string.Equals(cause, "WIN"))
+            {
+                endSceneBannerText.text = "TASK COMPLETE!";
+                int resetTextListLength = resetTextList.Count;
+                string resetRandText = resetTextList[UnityEngine.Random.Range(0, backTextListLength)];
+                resetButtonText.text = "Too " + resetRandText + ", refly!";
+            }
+            else if (string.Equals(cause, "FAIL"))
+            {
+                endSceneBannerText.text = "TASK ABORTED";
+            }
+            else if (string.Equals(cause, "PAUSE"))
+            {
+                //                    /-\___/-\
+                // THERE IS NO PAUSE    |̌' ̌'|
+                //                       \"/
+            }
+        }
     }
 
-    // Creates Line obj circle points
-    LineRenderer NewCircle(Vector3 targetVect, float xradius, float yradius, int segments)
+    // Takes a Vector3 and returns a Vector3 array describing a circle around the point in the XY plane
+    private Vector3[] CreateCirclePoints(Vector3 pos)
     {
-        LineRenderer circ = GameObject.FindGameObjectWithTag("Reticle").GetComponent<LineRenderer>();
-        circ.positionCount = segments + 1;
-        circ.useWorldSpace = false;
-        circ.startColor = Color.black;
-        circ.startWidth = 0.5f;
-
-        float x;
-        float y;
+        float x, y, z;
+        Vector3[] spokes = new Vector3[segments + 1];
 
         float angle = 20f;
 
+
         for (int i = 0; i < (segments + 1); i++)
         {
-            x = Mathf.Sin(Mathf.Deg2Rad * angle) * xradius;
-            y = Mathf.Cos(Mathf.Deg2Rad * angle) * yradius;
+            x = pos.x + Mathf.Sin(Mathf.Deg2Rad * angle) * retRadius;
+            y = pos.y + Mathf.Cos(Mathf.Deg2Rad * angle) * retRadius;
+            z = pos.z;
 
-            circ.SetPosition(i, new Vector3(targetVect.x + x, targetVect.y + y, targetVect.z));
+            spokes[i] = (new Vector3(x, y, z));
 
             angle += (360f / segments);
         }
-        return circ;
+        return spokes;
+    }
+
+    private Vector3[] CreateCrossPoints(Vector3 pos)
+    {
+        Vector3[] points = new Vector3[5];
+        points[0] = new Vector3(pos.x + retRadius, pos.y, pos.z);
+        points[1] = new Vector3(pos.x - retRadius, pos.y, pos.z);
+        points[2] = new Vector3(pos.x, pos.y, pos.z);
+        points[3] = new Vector3(pos.x, pos.y + retRadius, pos.z);
+        points[4] = new Vector3(pos.x, pos.y - retRadius, pos.z);
+        return points;
     }
 }
